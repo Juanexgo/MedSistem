@@ -24,7 +24,7 @@ export function createCsrfProtection(secret: string, isProd: boolean): CsrfBundl
     cookieName,
     cookieOptions: {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: isProd ? 'none' : 'strict',
       secure: isProd,
       path: '/',
     },

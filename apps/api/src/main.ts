@@ -25,6 +25,15 @@ async function bootstrap() {
 
   app.setGlobalPrefix(apiPrefix);
 
+  if (nodeEnv === 'production') {
+    // Behind Railway/Render/Fly proxies — trust the X-Forwarded-* headers so
+    // req.ip reports the real client (used by audit logs and rate limiting).
+    const httpAdapter: any = app.getHttpAdapter().getInstance();
+    if (typeof httpAdapter.set === 'function') {
+      httpAdapter.set('trust proxy', 1);
+    }
+  }
+
   if (helmetEnabled) {
     app.use(helmet({
       contentSecurityPolicy: {

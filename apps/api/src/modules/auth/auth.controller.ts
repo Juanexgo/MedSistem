@@ -33,10 +33,13 @@ export class AuthController {
 
   private getRefreshCookieOptions(): CookieOptions {
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
+    // In production the web (Vercel) and api (Railway/Render) live on different
+    // origins, so the cookie has to be sameSite='none' + secure=true to be sent
+    // on cross-site requests. Locally we keep 'strict' for stronger CSRF posture.
     return {
       httpOnly: true,
       secure: isProd,
-      sameSite: 'strict',
+      sameSite: isProd ? 'none' : 'strict',
       path: REFRESH_COOKIE_PATH,
       maxAge: REFRESH_COOKIE_MAX_AGE_MS,
     };
