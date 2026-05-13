@@ -1,0 +1,539 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+
+}
+
+enum UserRole {
+  ADMIN
+  HEAD_NURSE
+  NURSING
+  TRANSPORTER
+  SUPERVISOR
+  AUDITOR
+  DOCTOR
+}
+
+enum PermissionAction {
+  CREATE_TRANSFER
+  ASSIGN_TRANSFER
+  REASSIGN_TRANSFER
+  CANCEL_TRANSFER
+  CLOSE_SHIFT
+  VIEW_AUDIT
+  EXPORT_REPORTS
+  MANAGE_OXYGEN
+  VIEW_PATIENT_DATA
+  MANAGE_USERS
+  MANAGE_ROLES
+  VIEW_TRANSFERS
+  EDIT_TRANSFER
+  MANAGE_ZONES
+  VIEW_DASHBOARD
+  MANAGE_SHIFTS
+  VIEW_COMMENTS
+  CREATE_COMMENT
+  MANAGE_HANDOFF
+  VIEW_SECURITY
+  VIEW_SECURITY_INCIDENTS
+  MANAGE_SECURITY_INCIDENTS
+  RESTORE_USER
+  MANAGE_SETTINGS
+}
+
+enum EmployeeStatus {
+  AVAILABLE
+  BUSY
+  IN_TRANSFER
+  BREAK
+  OFF_SHIFT
+}
+
+enum TransferPriority {
+  URGENT
+  HIGH
+  NORMAL
+  SCHEDULED
+}
+
+enum TransportType {
+  STRETCHER
+  WHEELCHAIR
+  WALKING
+}
+
+enum TransferStatus {
+  REQUESTED
+  ASSIGNED
+  ON_THE_WAY
+  PATIENT_PICKED_UP
+  IN_TRANSFER
+  ARRIVED
+  IN_STUDY
+  RETURN_REQUESTED
+  COMPLETED
+  CANCELLED
+}
+
+enum OxygenTankStatus {
+  FULL
+  MEDIUM
+  LOW
+  CRITICAL
+}
+
+enum ShiftType {
+  MORNING
+  EVENING
+  NIGHT
+}
+
+enum CommentType {
+  PATIENT_NOT_READY
+  MISSING_OXYGEN_TANK
+  DOCTOR_ABSENT
+  ELEVATOR_SATURATED
+  DELAY
+  GENERAL
+  INCIDENT
+}
+
+enum CommentSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum CommentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentType {
+  BRUTE_FORCE_ATTEMPT
+  SUSPICIOUS_TOKEN_REUSE
+  ACCESS_DENIED
+  FAILED_LOGIN
+  UNAUTHORIZED_ACCESS
+  DATA_ACCESS_ANOMALY
+  OTHER
+}
+
+enum NotificationType {
+  URGENT_UNASSIGNED
+  PATIENT_WAITING
+  CRITICAL_OXYGEN
+  DELAYED_SERVICE
+  PENDING_HANDOFF
+  COMMENT_IMPORTANT
+  COMMENT_CREATED
+  ASSIGNMENT_CREATED
+  TRANSFER_UPDATE
+  SYSTEM_ALERT
+  SECURITY_INCIDENT
+  OPERATIONS_LOG
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  ASSIGN
+  REASSIGN
+  CANCEL
+  COMPLETE
+  VIEW
+  EXPORT
+  HANDOFF
+  CLOSE_SHIFT
+  ALERT_TRIGGERED
+  RESOLVE
+  MARK_IMPORTANT
+  READ
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  description String?
+  isSystem    Boolean      @default(false)
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String       @id @default(uuid()) @db.Uuid
+  action      PermissionAction @unique
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime     @default(now())
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String     @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id               String           @id @default(uuid()) @db.Uuid
+  email            String           @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  role             UserRole
+  roleId           String?          @db.Uuid
+  roleRel          Role?            @relation(fields: [roleId], references: [id])
+  employeeStatus   EmployeeStatus   @default(AVAILABLE)
+  isActive         Boolean          @default(true)
+  lastLoginAt      DateTime?
+  lastLoginIp      String?
+  phone            String?
+  department       String?
+
+  sessions            Session[]
+  assignmentsAsTransporter Assignment[] @relation("AssignmentTransporter")
+  assignmentsAsAssigner   Assignment[] @relation("AssignmentAssignedBy")
+  createdTransfers    TransferRequest[] @relation("AuthorizingUser")
+  transferredTransfers TransferRequest[] @relation("AssignedTransporter")
+  statusChanges       TransferStatusHistory[] @relation("UserStatusChanges")
+  comments            Comment[]
+  tankChanges         OxygenTankHistory[] @relation("UserTankChanges")
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  securityIncidents   SecurityIncident[]
+  shiftHandoffsGiven  ShiftHandoff[]  @relation("HandedOffBy")
+  shiftHandoffsReceived ShiftHandoff[] @relation("ReceivedBy")
+  shifts              Shift[]
+  routeHistories      RouteHistory[]
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  @@map("users")
+}
+
+model Session {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken  String   @unique
+  deviceInfo    String?
+  ipAddress     String?
+  userAgent     String?
+  isActive      Boolean  @default(true)
+  lastUsedAt    DateTime @default(now())
+  expiresAt     DateTime
+
+  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+
+  @@map("sessions")
+}
+
+model Patient {
+  id                String            @id @default(uuid()) @db.Uuid
+  fullName          String
+  bedNumber         String
+  floor             String
+  medicalRecordNumber String?
+  notes             String?
+  isActive          Boolean           @default(true)
+
+  transferRequests  TransferRequest[]
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+
+  @@map("patients")
+}
+
+model TransferRequest {
+  id                   String             @id @default(uuid()) @db.Uuid
+  trackingToken        String             @unique @default(uuid())
+  qrCodeDataUrl        String?
+
+  patientId            String             @db.Uuid
+  patient              Patient            @relation(fields: [patientId], references: [id])
+  bedNumber            String
+  floor                String
+  origin               String
+  destination          String
+  priority             TransferPriority
+  transportType        TransportType
+  requestedStudy       String?
+  notes                String?
+
+  requiresOxygen       Boolean            @default(false)
+  oxygenLiters         Int?
+  assignedTankId       String?            @db.Uuid
+  assignedTank         OxygenTank?        @relation(fields: [assignedTankId], references: [id])
+  tankLevel            Int?
+  manometer            Int?
+
+  requiresDoctorCompanion Boolean          @default(false)
+  doctorCompanionName  String?
+
+  authorizingUserId    String             @db.Uuid
+  authorizingUser      User               @relation("AuthorizingUser", fields: [authorizingUserId], references: [id])
+
+  assignedTransporterId String?            @db.Uuid
+  assignedTransporter  User?              @relation("AssignedTransporter", fields: [assignedTransporterId], references: [id])
+
+  status               TransferStatus     @default(REQUESTED)
+  statusHistory        TransferStatusHistory[]
+  comments             Comment[]
+  assignments          Assignment[]
+  routeHistories       RouteHistory[]
+
+  requestedAt          DateTime           @default(now())
+  assignedAt           DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  cancelledAt          DateTime?
+  cancellationReason   String?
+
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  deletedAt            DateTime?
+
+  @@map("transfer_requests")
+}
+
+model TransferStatusHistory {
+  id                String         @id @default(uuid()) @db.Uuid
+  transferRequestId String         @db.Uuid
+  transferRequest   TransferRequest @relation(fields: [transferRequestId], references: [id])
+  status            TransferStatus
+  changedByUserId   String         @db.Uuid
+  changedByUser     User           @relation("UserStatusChanges", fields: [changedByUserId], references: [id])
+  comment           String?
+  createdAt         DateTime       @default(now())
+
+  @@map("transfer_status_history")
+}
+
+model Assignment {
+  id                String         @id @default(uuid()) @db.Uuid
+  transferRequestId String         @db.Uuid
+  transferRequest   TransferRequest @relation(fields: [transferRequestId], references: [id])
+  transporterId     String         @db.Uuid
+  transporter       User           @relation("AssignmentTransporter", fields: [transporterId], references: [id])
+  assignedById      String         @db.Uuid
+  assignedBy        User           @relation("AssignmentAssignedBy", fields: [assignedById], references: [id])
+  isActive          Boolean        @default(true)
+  assignedAt        DateTime       @default(now())
+  unassignedAt      DateTime?
+  reason            String?
+
+  @@map("assignments")
+}
+
+model RouteHistory {
+  id                String         @id @default(uuid()) @db.Uuid
+  transferRequestId String         @db.Uuid
+  transferRequest   TransferRequest @relation(fields: [transferRequestId], references: [id])
+  transporterId     String         @db.Uuid
+  transporter       User           @relation(fields: [transporterId], references: [id])
+  latitude          Float?
+  longitude         Float?
+  zone              String?
+  action            String
+  recordedAt        DateTime       @default(now())
+
+  @@map("route_history")
+}
+
+model OxygenTank {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique
+  level       Int
+  status      OxygenTankStatus
+  psi         Int
+  capacity    Int
+  location    String
+  isAvailable Boolean          @default(true)
+  notes       String?
+
+  transfers   TransferRequest[]
+  history     OxygenTankHistory[]
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  @@map("oxygen_tanks")
+}
+
+model OxygenTankHistory {
+  id          String       @id @default(uuid()) @db.Uuid
+  tankId      String       @db.Uuid
+  tank        OxygenTank   @relation(fields: [tankId], references: [id])
+  previousLevel Int
+  newLevel    Int
+  previousStatus OxygenTankStatus
+  newStatus   OxygenTankStatus
+  changedByUserId String   @db.Uuid
+  changedByUser   User     @relation("UserTankChanges", fields: [changedByUserId], references: [id])
+  transferRequestId String? @db.Uuid
+  comment     String?
+  createdAt   DateTime     @default(now())
+
+  @@map("oxygen_tank_history")
+}
+
+model Shift {
+  id        String     @id @default(uuid()) @db.Uuid
+  shiftCode String     @unique
+  type      ShiftType
+  userId    String     @db.Uuid
+  user      User       @relation(fields: [userId], references: [id])
+  startedAt DateTime   @default(now())
+  endedAt   DateTime?
+  isActive  Boolean    @default(true)
+  handoff   ShiftHandoff?
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("shifts")
+}
+
+model ShiftHandoff {
+  id              String   @id @default(uuid()) @db.Uuid
+  shiftId         String   @unique @db.Uuid
+  shift           Shift    @relation(fields: [shiftId], references: [id])
+  completedServices String?
+  pendingServices  String?
+  patientsInTransfer String?
+  incompleteStudies String?
+  incidents       String?
+  lowOxygenTanks  String?
+  observations    String?
+  handedOffById   String   @db.Uuid
+  handedOffBy     User     @relation("HandedOffBy", fields: [handedOffById], references: [id])
+  receivedById    String   @db.Uuid
+  receivedBy      User     @relation("ReceivedBy", fields: [receivedById], references: [id])
+  handoffAt       DateTime @default(now())
+
+  @@map("shift_handoffs")
+}
+
+model Comment {
+  id                String          @id @default(uuid()) @db.Uuid
+  content           String
+  isImportant       Boolean         @default(false)
+  type              CommentType     @default(GENERAL)
+  severity          CommentSeverity @default(INFO)
+  status            CommentStatus   @default(OPEN)
+  userId            String          @db.Uuid
+  user              User            @relation(fields: [userId], references: [id])
+  transferRequestId String?         @db.Uuid
+  transferRequest   TransferRequest? @relation(fields: [transferRequestId], references: [id])
+  resolvedAt        DateTime?
+  resolvedById      String?         @db.Uuid
+  escalatedAt       DateTime?
+  category          String?
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  deletedAt         DateTime?
+
+  @@map("comments")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String?      @db.Uuid
+  user        User?        @relation(fields: [userId], references: [id])
+  action      AuditAction
+  entity      String
+  entityId    String?
+  previousData Json?
+  newData     Json?
+  ipAddress   String?
+  userAgent   String?
+  comment     String?
+  createdAt   DateTime     @default(now())
+
+  @@map("audit_logs")
+}
+
+model SecurityIncident {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @db.Uuid
+  user        User?    @relation(fields: [userId], references: [id])
+  type        String
+  severity    String
+  description String
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  resolvedAt  DateTime?
+  resolvedById String? @db.Uuid
+  resolution  String?
+
+  createdAt   DateTime @default(now())
+
+  @@map("security_incidents")
+}
+
+model HospitalZone {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  code        String   @unique
+  description String?
+  color       String?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("hospital_zones")
+}
