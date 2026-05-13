@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: medsistem-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: apps/api
+    buildCommand: cd ../.. && npm install --include=dev && npx prisma generate --schema=apps/api/prisma/schema.prisma && npx turbo build --filter=@mediflow/api
+    startCommand: npx prisma migrate deploy && node dist/src/main
+    healthCheckPath: /api/v1/auth/csrf-token
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: 4000
+      - key: API_PREFIX
+        value: /api/v1
+      - key: HELMET_ENABLED
+        value: "true"
+      - key: CORS_ENABLED
+        value: "true"
+      - key: BCRYPT_SALT_ROUNDS
+        value: "12"
+      - key: LOG_LEVEL
+        value: info
+      - key: LOG_FORMAT
+        value: json
+      - key: JWT_ACCESS_EXPIRY
+        value: 15m
+      - key: JWT_REFRESH_EXPIRY
+        value: 7d
+      - key: THROTTLE_TTL
+        value: "60"
+      - key: THROTTLE_LIMIT
+        value: "100"
+      - key: LOGIN_THROTTLE_TTL
+        value: "300"
+      - key: LOGIN_THROTTLE_LIMIT
+        value: "5"
+      # These must be set manually in the Render dashboard (sync: false):
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: CSRF_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
