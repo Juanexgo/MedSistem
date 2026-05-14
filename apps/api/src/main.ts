@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { createCsrfProtection, CSRF_HEADER_NAME } from './common/middleware/csrf';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { createWinstonLogger } from './common/logger/winston.config';
 
 async function bootstrap() {
@@ -93,8 +94,26 @@ async function bootstrap() {
     if (req.path.startsWith(`${apiPrefix}/tracking/`)) {
       return next();
     }
-    return doubleCsrfProtection(req, res, next);
+    return doubleCsrfProtection(req, res, (err?: unknown) => {
+      if (err) {
+        // csrf-csrf throws a plain Error (not HttpException), so the default
+        // Nest filter would turn it into a 500. Translate it here to a 403 with
+        // a discriminating code so the web client can transparently refresh the
+        // token and retry the mutation.
+        return res.status(403).json({
+          success: false,
+          statusCode: 403,
+          code: 'invalid_csrf_token',
+          message: (err as Error)?.message || 'Invalid CSRF token',
+          timestamp: new Date().toISOString(),
+          path: req.url,
+        });
+      }
+      return next();
+    });
   });
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -16,11 +16,12 @@ export function createCsrfProtection(secret: string, isProd: boolean): CsrfBundl
 
   cachedBundle = doubleCsrf({
     getSecret: () => secret,
-    getSessionIdentifier: (req: Request) => {
-      const ip = req.ip || 'unknown';
-      const ua = req.headers['user-agent'] || 'unknown';
-      return `${ip}::${ua}`;
-    },
+    // Double-submit cookie pattern: protection comes from the attacker not being
+    // able to read the cookie nor set a custom header cross-origin. Binding the
+    // token to req.ip is brittle behind proxies/CDNs (the IP can change between
+    // issuing and verifying the token, causing false-positive rejections), so we
+    // use a stable per-app identifier instead.
+    getSessionIdentifier: () => 'mediflow',
     cookieName,
     cookieOptions: {
       httpOnly: true,

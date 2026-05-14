@@ -158,7 +158,7 @@ class ApiClient {
       });
     }
 
-    if (res.status === 403 && MUTATION_METHODS.has(method)) {
+    if ((res.status === 403 || res.status === 500) && MUTATION_METHODS.has(method)) {
       const cloned = res.clone();
       const errJson = await cloned.json().catch(() => ({}));
       const codeText = `${(errJson as any)?.code || ''} ${(errJson as any)?.message || ''}`;
