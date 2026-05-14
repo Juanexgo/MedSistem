@@ -90,17 +90,6 @@ mediflow/
 - UI elements hidden based on permissions
 - API endpoints protected by permission guards
 
-## Demo Credentials
-
-| Role | Email | Password |
-|---|---|---|
-| Admin | admin@mediflow.com | MediFlow2024! |
-| Head Nurse | headnurse@mediflow.com | MediFlow2024! |
-| Transporter | transporter@mediflow.com | MediFlow2024! |
-| Transporter | transporter2@mediflow.com | MediFlow2024! |
-| Auditor | auditor@mediflow.com | MediFlow2024! |
-| Doctor | doctor@mediflow.com | MediFlow2024! |
-
 ## Quick Start
 
 ### Prerequisites
