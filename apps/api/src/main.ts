@@ -83,15 +83,19 @@ async function bootstrap() {
     nodeEnv === 'production',
   );
 
-  const csrfExemptPaths = [
-    `${apiPrefix}/auth/login`,
-    `${apiPrefix}/auth/csrf-token`,
-  ];
+  // CSRF only applies to endpoints that authenticate via the browser-managed
+  // refresh cookie. Every other endpoint is JWT Bearer-authenticated, which is
+  // CSRF-immune by construction: the browser does not auto-send the
+  // Authorization header cross-origin, and CORS prevents an attacker from
+  // setting it. Limiting the scope avoids the cross-site cookie pitfalls
+  // (Safari ITP, Chrome 3rd-party blocking) for the bulk of the API.
+  const csrfProtectedPaths = new Set<string>([
+    `${apiPrefix}/auth/refresh`,
+    `${apiPrefix}/auth/logout`,
+    `${apiPrefix}/auth/logout-all`,
+  ]);
   app.use((req: Request, res: Response, next: NextFunction) => {
-    if (csrfExemptPaths.includes(req.path)) {
-      return next();
-    }
-    if (req.path.startsWith(`${apiPrefix}/tracking/`)) {
+    if (!csrfProtectedPaths.has(req.path)) {
       return next();
     }
     return doubleCsrfProtection(req, res, (err?: unknown) => {
