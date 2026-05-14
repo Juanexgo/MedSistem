@@ -179,12 +179,13 @@ export class DashboardService {
     };
   }
 
-  async getActiveTransfers(zone?: string) {
+  async getActiveTransfers(zone?: string, assignedTransporterId?: string) {
     const transfers = await this.prisma.transferRequest.findMany({
       where: {
         deletedAt: null,
         status: { notIn: ['COMPLETED', 'CANCELLED'] },
         ...(zone ? { origin: zone } : {}),
+        ...(assignedTransporterId ? { assignedTransporterId } : {}),
       },
       include: {
         patient: { select: { fullName: true } },

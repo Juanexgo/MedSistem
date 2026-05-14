@@ -1,9 +1,10 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { PermissionAction } from '@prisma/client';
+import { PermissionAction, UserRole } from '@prisma/client';
 import { DashboardService } from './dashboard.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
@@ -65,8 +66,13 @@ export class DashboardController {
   @RequirePermissions(PermissionAction.VIEW_TRANSFERS)
   @ApiOperation({ summary: 'Get active transfers for dashboard' })
   @ApiQuery({ name: 'zone', required: false })
-  getActiveTransfers(@Query('zone') zone?: string) {
-    return this.service.getActiveTransfers(zone);
+  getActiveTransfers(
+    @Query('zone') zone: string | undefined,
+    @CurrentUser() user: { id: string; role: UserRole },
+  ) {
+    // Transporters only see their own active transfers; everyone else sees all.
+    const assignedTransporterId = user.role === UserRole.TRANSPORTER ? user.id : undefined;
+    return this.service.getActiveTransfers(zone, assignedTransporterId);
   }
 
   @Get('unassigned-urgent')
